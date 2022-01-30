@@ -302,4 +302,4 @@ Finally you can run the console with
 ## Author
 
 * **Nahom Zelalem** [nahomz](nahomzelalem11@gmail.com)
-* **Mikiyas Meaza** [MickyBe](MickyBe@gmail.com)
+* **Mikiyas Meaza** [MickyBe](bmikiyas@gmail.com)
