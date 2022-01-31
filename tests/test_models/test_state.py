@@ -1,111 +1,189 @@
 #!/usr/bin/python3
-"""
-Contains the TestReviewDocs classes
-"""
+"""Defines unittests for models/state.py.
 
-from datetime import datetime
-import inspect
-from models import review
-from models.base_model import BaseModel
-import pep8
+Unittest classes:
+    TestState_instantiation
+    TestState_save
+    TestState_to_dict
+"""
+import os
+import models
 import unittest
-Review = review.Review
+from datetime import datetime
+from time import sleep
+from models.state import State
 
 
-class TestReviewDocs(unittest.TestCase):
-    """Tests to check the documentation and style of Review class"""
+class TestState_instantiation(unittest.TestCase):
+    """Unittests for testing instantiation of the State class."""
+
+    def test_no_args_instantiates(self):
+        self.assertEqual(State, type(State()))
+
+    def test_new_instance_stored_in_objects(self):
+        self.assertIn(State(), models.storage.all().values())
+
+    def test_id_is_public_str(self):
+        self.assertEqual(str, type(State().id))
+
+    def test_created_at_is_public_datetime(self):
+        self.assertEqual(datetime, type(State().created_at))
+
+    def test_updated_at_is_public_datetime(self):
+        self.assertEqual(datetime, type(State().updated_at))
+
+    def test_name_is_public_class_attribute(self):
+        st = State()
+        self.assertEqual(str, type(State.name))
+        self.assertIn("name", dir(st))
+        self.assertNotIn("name", st.__dict__)
+
+    def test_two_states_unique_ids(self):
+        st1 = State()
+        st2 = State()
+        self.assertNotEqual(st1.id, st2.id)
+
+    def test_two_states_different_created_at(self):
+        st1 = State()
+        sleep(0.05)
+        st2 = State()
+        self.assertLess(st1.created_at, st2.created_at)
+
+    def test_two_states_different_updated_at(self):
+        st1 = State()
+        sleep(0.05)
+        st2 = State()
+        self.assertLess(st1.updated_at, st2.updated_at)
+
+    def test_str_representation(self):
+        dt = datetime.today()
+        dt_repr = repr(dt)
+        st = State()
+        st.id = "123456"
+        st.created_at = st.updated_at = dt
+        ststr = st.__str__()
+        self.assertIn("[State] (123456)", ststr)
+        self.assertIn("'id': '123456'", ststr)
+        self.assertIn("'created_at': " + dt_repr, ststr)
+        self.assertIn("'updated_at': " + dt_repr, ststr)
+
+    def test_args_unused(self):
+        st = State(None)
+        self.assertNotIn(None, st.__dict__.values())
+
+    def test_instantiation_with_kwargs(self):
+        dt = datetime.today()
+        dt_iso = dt.isoformat()
+        st = State(id="345", created_at=dt_iso, updated_at=dt_iso)
+        self.assertEqual(st.id, "345")
+        self.assertEqual(st.created_at, dt)
+        self.assertEqual(st.updated_at, dt)
+
+    def test_instantiation_with_None_kwargs(self):
+        with self.assertRaises(TypeError):
+            State(id=None, created_at=None, updated_at=None)
+
+
+class TestState_save(unittest.TestCase):
+    """Unittests for testing save method of the State class."""
+
     @classmethod
-    def setUpClass(cls):
-        """Set up for the doc tests"""
-        cls.review_f = inspect.getmembers(Review, inspect.isfunction)
+    def setUp(self):
+        try:
+            os.rename("file.json", "tmp")
+        except IOError:
+            pass
 
-    def test_pep8_conformance_review(self):
-        """Test that models/review.py conforms to PEP8."""
-        pep8s = pep8.StyleGuide(quiet=True)
-        result = pep8s.check_files(['models/review.py'])
-        self.assertEqual(result.total_errors, 0,
-                         "Found code style errors (and warnings).")
+    def tearDown(self):
+        try:
+            os.remove("file.json")
+        except IOError:
+            pass
+        try:
+            os.rename("tmp", "file.json")
+        except IOError:
+            pass
 
-    def test_pep8_conformance_test_review(self):
-        """Test that tests/test_models/test_review.py conforms to PEP8."""
-        pep8s = pep8.StyleGuide(quiet=True)
-        result = pep8s.check_files(['tests/test_models/test_review.py'])
-        self.assertEqual(result.total_errors, 0,
-                         "Found code style errors (and warnings).")
+    def test_one_save(self):
+        st = State()
+        sleep(0.05)
+        first_updated_at = st.updated_at
+        st.save()
+        self.assertLess(first_updated_at, st.updated_at)
 
-    def test_review_module_docstring(self):
-        """Test for the review.py module docstring"""
-        self.assertIsNot(review.__doc__, None,
-                         "review.py needs a docstring")
-        self.assertTrue(len(review.__doc__) >= 1,
-                        "review.py needs a docstring")
+    def test_two_saves(self):
+        st = State()
+        sleep(0.05)
+        first_updated_at = st.updated_at
+        st.save()
+        second_updated_at = st.updated_at
+        self.assertLess(first_updated_at, second_updated_at)
+        sleep(0.05)
+        st.save()
+        self.assertLess(second_updated_at, st.updated_at)
 
-    def test_review_class_docstring(self):
-        """Test for the Review class docstring"""
-        self.assertIsNot(Review.__doc__, None,
-                         "Review class needs a docstring")
-        self.assertTrue(len(Review.__doc__) >= 1,
-                        "Review class needs a docstring")
+    def test_save_with_arg(self):
+        st = State()
+        with self.assertRaises(TypeError):
+            st.save(None)
 
-    def test_review_func_docstrings(self):
-        """Test for the presence of docstrings in Review methods"""
-        for func in self.review_f:
-            self.assertIsNot(func[1].__doc__, None,
-                             "{:s} method needs a docstring".format(func[0]))
-            self.assertTrue(len(func[1].__doc__) >= 1,
-                            "{:s} method needs a docstring".format(func[0]))
+    def test_save_updates_file(self):
+        st = State()
+        st.save()
+        stid = "State." + st.id
+        with open("file.json", "r") as f:
+            self.assertIn(stid, f.read())
 
 
-class TestReview(unittest.TestCase):
-    """Test the Review class"""
-    def test_is_subclass(self):
-        """Test if Review is a subclass of BaseModel"""
-        review = Review()
-        self.assertIsInstance(review, BaseModel)
-        self.assertTrue(hasattr(review, "id"))
-        self.assertTrue(hasattr(review, "created_at"))
-        self.assertTrue(hasattr(review, "updated_at"))
+class TestState_to_dict(unittest.TestCase):
+    """Unittests for testing to_dict method of the State class."""
 
-    def test_place_id_attr(self):
-        """Test Review has attr place_id, and it's an empty string"""
-        review = Review()
-        self.assertTrue(hasattr(review, "place_id"))
-        self.assertEqual(review.place_id, "")
+    def test_to_dict_type(self):
+        self.assertTrue(dict, type(State().to_dict()))
 
-    def test_user_id_attr(self):
-        """Test Review has attr user_id, and it's an empty string"""
-        review = Review()
-        self.assertTrue(hasattr(review, "user_id"))
-        self.assertEqual(review.user_id, "")
+    def test_to_dict_contains_correct_keys(self):
+        st = State()
+        self.assertIn("id", st.to_dict())
+        self.assertIn("created_at", st.to_dict())
+        self.assertIn("updated_at", st.to_dict())
+        self.assertIn("__class__", st.to_dict())
 
-    def test_text_attr(self):
-        """Test Review has attr text, and it's an empty string"""
-        review = Review()
-        self.assertTrue(hasattr(review, "text"))
-        self.assertEqual(review.text, "")
+    def test_to_dict_contains_added_attributes(self):
+        st = State()
+        st.middle_name = "Holberton"
+        st.my_number = 98
+        self.assertEqual("Holberton", st.middle_name)
+        self.assertIn("my_number", st.to_dict())
 
-    def test_to_dict_creates_dict(self):
-        """test to_dict method creates a dictionary with proper attrs"""
-        r = Review()
-        new_d = r.to_dict()
-        self.assertEqual(type(new_d), dict)
-        for attr in r.__dict__:
-            self.assertTrue(attr in new_d)
-            self.assertTrue("__class__" in new_d)
+    def test_to_dict_datetime_attributes_are_strs(self):
+        st = State()
+        st_dict = st.to_dict()
+        self.assertEqual(str, type(st_dict["id"]))
+        self.assertEqual(str, type(st_dict["created_at"]))
+        self.assertEqual(str, type(st_dict["updated_at"]))
 
-    def test_to_dict_values(self):
-        """test that values in dict returned from to_dict are correct"""
-        t_format = "%Y-%m-%dT%H:%M:%S.%f"
-        r = Review()
-        new_d = r.to_dict()
-        self.assertEqual(new_d["__class__"], "Review")
-        self.assertEqual(type(new_d["created_at"]), str)
-        self.assertEqual(type(new_d["updated_at"]), str)
-        self.assertEqual(new_d["created_at"], r.created_at.strftime(t_format))
-        self.assertEqual(new_d["updated_at"], r.updated_at.strftime(t_format))
+    def test_to_dict_output(self):
+        dt = datetime.today()
+        st = State()
+        st.id = "123456"
+        st.created_at = st.updated_at = dt
+        tdict = {
+            'id': '123456',
+            '__class__': 'State',
+            'created_at': dt.isoformat(),
+            'updated_at': dt.isoformat(),
+        }
+        self.assertDictEqual(st.to_dict(), tdict)
 
-    def test_str(self):
-        """test that the str method has the correct output"""
-        review = Review()
-        string = "[Review] ({}) {}".format(review.id, review.__dict__)
-        self.assertEqual(string, str(review))
+    def test_contrast_to_dict_dunder_dict(self):
+        st = State()
+        self.assertNotEqual(st.to_dict(), st.__dict__)
+
+    def test_to_dict_with_arg(self):
+        st = State()
+        with self.assertRaises(TypeError):
+            st.to_dict(None)
+
+
+if __name__ == "__main__":
+    unittest.main()
